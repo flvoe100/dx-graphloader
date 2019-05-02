@@ -1,15 +1,12 @@
-package de.hhu.bsinfo.dxapp;
+package de.hhu.bsinfo.dxgraphloader;
 
-import java.util.Arrays;
-
+import de.hhu.bsinfo.dxgraphloader.vertexLoader.LDBCVerticesLoader;
+import de.hhu.bsinfo.dxgraphloader.vertexLoader.model.VertexLoader;
 import de.hhu.bsinfo.dxram.app.Application;
-import de.hhu.bsinfo.dxram.boot.BootService;
 import de.hhu.bsinfo.dxram.chunk.ChunkLocalService;
-import de.hhu.bsinfo.dxram.chunk.ChunkService;
 import de.hhu.bsinfo.dxram.engine.DXRAMVersion;
 import de.hhu.bsinfo.dxram.generated.BuildConfig;
-import de.hhu.bsinfo.dxram.nameservice.NameserviceService;
-import de.hhu.bsinfo.dxutils.NodeID;
+
 
 /**
  * "Hello world" example DXRAM application.
@@ -29,14 +26,14 @@ public class HelloApplication extends Application {
 
     @Override
     public void main(final String[] p_args) {
-        BootService bootService = getService(BootService.class);
+
+
+        ChunkLocalService chunkLocalService = getService(ChunkLocalService.class);
+        VertexLoader vertexLoader = new LDBCVerticesLoader(chunkLocalService);
+        long mem = Runtime.getRuntime().freeMemory();
+        vertexLoader.loadVertices("/home/voelz/Projektarbeit/datagen-9_3-zf.v");
+        System.out.println(mem - Runtime.getRuntime().freeMemory());
         
-
-        System.out.printf("\n");
-        System.out.printf("  Hello! I am %s running on node %s.\n", getApplicationName(), NodeID.toHexStringShort(bootService.getNodeID()));
-        System.out.printf("  My arguments are: %s\n", Arrays.toString(p_args));
-        System.out.printf("\n");
-
 
 
         // Put your application code running on the DXRAM node/peer here
