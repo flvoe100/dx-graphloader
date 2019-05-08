@@ -14,6 +14,14 @@ public class Vertex extends AbstractChunk {
         this.externalId = externalId;
     }
 
+    public long getExternalId() {
+        return externalId;
+    }
+
+    public void setExternalId(long externalId) {
+        this.externalId = externalId;
+    }
+
     @Override
     public void exportObject(Exporter p_exporter) {
         p_exporter.writeLong(this.externalId);

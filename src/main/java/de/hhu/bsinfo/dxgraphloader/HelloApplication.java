@@ -4,6 +4,7 @@ import de.hhu.bsinfo.dxgraphloader.vertexLoader.LDBCVerticesLoader;
 import de.hhu.bsinfo.dxgraphloader.vertexLoader.model.VertexLoader;
 import de.hhu.bsinfo.dxram.app.Application;
 import de.hhu.bsinfo.dxram.chunk.ChunkLocalService;
+import de.hhu.bsinfo.dxram.chunk.ChunkService;
 import de.hhu.bsinfo.dxram.engine.DXRAMVersion;
 import de.hhu.bsinfo.dxram.generated.BuildConfig;
 
@@ -29,9 +30,10 @@ public class HelloApplication extends Application {
 
 
         ChunkLocalService chunkLocalService = getService(ChunkLocalService.class);
-        VertexLoader vertexLoader = new LDBCVerticesLoader(chunkLocalService);
+        ChunkService chunkService = getService(ChunkService.class);
+        VertexLoader vertexLoader = new LDBCVerticesLoader(chunkLocalService, chunkService, 555270053);
         long mem = Runtime.getRuntime().freeMemory();
-        vertexLoader.loadVertices("/home/voelz/Projektarbeit/datagen-9_3-zf.v");
+        vertexLoader.loadVertices("/home/voelz/projektarbeit/datagen-9_3-zf.v");
         System.out.println(mem - Runtime.getRuntime().freeMemory());
         
 
