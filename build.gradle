@@ -30,10 +30,12 @@ dependencies {
     providedImplementation 'de.hhu.bsinfo:dxram:0.8.0' + (Boolean.valueOf(System.getProperty("release")) ? "" : "-SNAPSHOT")
 
     testImplementation 'junit:junit:4.12'
+
+    implementation 'com.jramoyo:indexed-file-reader:1.0'
 }
 
 jar {
-    archiveName 'dxa-testapp.jar'
+    archiveName 'dxa-graphloader.jar'
     from {
         configurations.compileClasspath.collect { it.isDirectory() ? it : zipTree(it) }
     }

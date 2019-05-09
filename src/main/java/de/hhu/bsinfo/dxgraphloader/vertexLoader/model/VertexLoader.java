@@ -4,7 +4,7 @@ import java.util.HashMap;
 
 public abstract class VertexLoader {
 
-    public HashMap<Long, Long> idMapper;
+    public HashMap<Long, Integer> idMapper;
 
 
     public VertexLoader() {
@@ -12,7 +12,7 @@ public abstract class VertexLoader {
     }
 
 
-    private void addIdMapping(long externalId, long chunkId) {
+    private void addIdMapping(long externalId, int chunkId) {
         this.idMapper.put(externalId, chunkId);
     }
 

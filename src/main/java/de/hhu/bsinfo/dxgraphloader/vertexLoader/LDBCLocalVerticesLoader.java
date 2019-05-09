@@ -14,20 +14,21 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.sql.SQLOutput;
 import java.util.Arrays;
 
-public class LDBCVerticesLoader extends VertexLoader {
+public class LDBCLocalVerticesLoader extends VertexLoader {
 
     private ChunkLocalService localService;
     private ChunkService chunkService;
     private int NUM_OF_VERTICES;
 
 
-    public LDBCVerticesLoader() {
+    public LDBCLocalVerticesLoader() {
         super();
     }
 
-    public LDBCVerticesLoader(ChunkLocalService localService, ChunkService chunkService, int verticesCount) {
+    public LDBCLocalVerticesLoader(ChunkLocalService localService, ChunkService chunkService, int verticesCount) {
         this.localService = localService;
         this.chunkService = chunkService;
         this.NUM_OF_VERTICES = verticesCount;
@@ -46,29 +47,28 @@ public class LDBCVerticesLoader extends VertexLoader {
             final int outMod = 1000000;
             int cntVertices = 0;
             Vertex v = new Vertex();
-
-            long[] ids = localService.reserveLocal().reserve(this.NUM_OF_VERTICES);
-            int[] sizesOfVertices = new int[this.NUM_OF_VERTICES];
-            Arrays.fill(sizesOfVertices, v.sizeofObject());
-            int created = localService.createReservedLocal().create(ids, this.NUM_OF_VERTICES, sizesOfVertices);
-
-            if(created != this.NUM_OF_VERTICES) {
-                System.out.println("Create reserve local did not succeed");
-                return;
-            }
-
-
+            System.out.println("Create ID space!");
+            long[] ids = new long[this.NUM_OF_VERTICES];
+            localService.createLocal().create(ids, this.NUM_OF_VERTICES, v.sizeofObject(), true ); //true = aufsteigend
+            final long firstId = ids[0];
+            long chunkId = firstId;
+            ids = null;
+            System.gc();
+            System.out.println("ID space created!");
+            System.out.println("Start processing vertix file!");
             while ((line = br.readLine()) != null) {
                 long vid = Long.parseLong(line.split("\\s")[0]);
 
-                v.setID(ids[cntVertices++]);
+                v.setID(chunkId++);
                 v.setExternalId(vid);
-                this.idMapper.put(vid, v.getID());
 
+                this.idMapper.put(vid,(int) ((v.getID() - firstId) & 0x0000ffffffffffffL ));
+                cntVertices++;
                 if (cntVertices % outMod == 0) {
                     System.out.println(String.format("Processing: %dM vertices finished...", (cntVertices / outMod)));
                 }
             }
+            System.out.println("Procesing vertices done!");
         } catch (IOException e) {
             e.printStackTrace();
         }
