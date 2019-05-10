@@ -19,7 +19,7 @@ import java.util.List;
  *
  * @author Stefan Nothaas, stefan.nothaas@hhu.de, 17.05.17
  */
-public class HelloApplication extends Application {
+public class GraphloaderApplication extends Application {
     @Override
     public DXRAMVersion getBuiltAgainstVersion() {
         return BuildConfig.DXRAM_VERSION;
@@ -27,7 +27,7 @@ public class HelloApplication extends Application {
 
     @Override
     public String getApplicationName() {
-        return "HelloApplication";
+        return "GraphloaderApplication";
     }
 
     @Override

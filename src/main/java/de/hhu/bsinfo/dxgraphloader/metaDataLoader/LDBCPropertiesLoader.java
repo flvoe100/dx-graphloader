@@ -85,16 +85,6 @@ public class LDBCPropertiesLoader implements PropertiesLoader  {
             //maybe better partitioning?
             //slice into even partitions
             int sizeOfPartition = i != this.nodes.size() - 1 ? totalNumberOfVertices * 1 / this.nodes.size() : totalNumberOfVertices * 1 / this.nodes.size() + totalNumberOfVertices % this.nodes.size();
-            SortedMap<Integer, String> partitionLines;
-            try(final IndexedFileReader indexedFileReader = new IndexedFileReader(new File(this.datasetPath), StandardCharsets.US_ASCII)) {
-                partitionLines = indexedFileReader.readLines(startReadIndex, startReadIndex+sizeOfPartition);
-                startVertexID = Integer.parseInt(partitionLines.get(partitionLines.firstKey()));
-                endVertexID = Integer.parseInt(partitionLines.get(partitionLines.lastKey()));
-                startReadIndex += sizeOfPartition;
-            } catch(IOException e) {
-                e.printStackTrace();
-            };
-
             this.metaData.addNodeMetaData(i, nodeID, startVertexID, endVertexID, sizeOfPartition);
         }
     }
