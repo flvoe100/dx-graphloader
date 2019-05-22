@@ -1,17 +1,16 @@
 package de.hhu.bsinfo.dxgraphloader;
 
-import de.hhu.bsinfo.dxgraphloader.metaDataLoader.LDBCPropertiesLoader;
+import de.hhu.bsinfo.dxgraphloader.metadataLoader.LDBCPropertiesLoader;
+import de.hhu.bsinfo.dxgraphloader.metadataLoader.model.LoadingMetaData;
 import de.hhu.bsinfo.dxgraphloader.vertexLoader.LDBCDistVerticesLoader;
-import de.hhu.bsinfo.dxgraphloader.vertexLoader.LDBCLocalVerticesLoader;
-import de.hhu.bsinfo.dxgraphloader.vertexLoader.model.VertexLoader;
 import de.hhu.bsinfo.dxram.app.Application;
 import de.hhu.bsinfo.dxram.boot.BootService;
 import de.hhu.bsinfo.dxram.chunk.ChunkLocalService;
 import de.hhu.bsinfo.dxram.chunk.ChunkService;
 import de.hhu.bsinfo.dxram.engine.DXRAMVersion;
 import de.hhu.bsinfo.dxram.generated.BuildConfig;
-
-import java.util.List;
+import de.hhu.bsinfo.dxram.nameservice.NameserviceService;
+import de.hhu.bsinfo.dxram.sync.SynchronizationService;
 
 
 /**
@@ -33,20 +32,30 @@ public class GraphloaderApplication extends Application {
     @Override
     public void main(final String[] p_args) {
 
-        String fileName = p_args[0];
-        int numberOfVertices = Integer.parseInt(p_args[1]);
-        System.out.println("Input: " + fileName);
-        BootService bootService = getService(BootService.class);
-        List<Short> nodes = bootService.getOnlinePeerNodeIDs();
-        short ownId = bootService.getNodeID();
+        String datasetPrefix = p_args[0];
+        String propertiesPath = p_args[1];
+        String verticePath = p_args[3];
 
-        ChunkLocalService chunkLocalService = getService(ChunkLocalService.class);
-        ChunkService chunkService = getService(ChunkService.class);
-        VertexLoader vertexLoader = new LDBCLocalVerticesLoader(chunkLocalService, chunkService,  numberOfVertices );
+        ChunkLocalService chunkLocalService = this.getService(ChunkLocalService.class);
+        ChunkService chunkService = this.getService(ChunkService.class);
+        BootService bootService = this.getService(BootService.class);
+        NameserviceService nameService = this.getService(NameserviceService.class);
+        SynchronizationService syncService = this.getService(SynchronizationService.class);
+
+
+        short currentNodeID = bootService.getNodeID();
+        LDBCDistVerticesLoader verticesLoader = new LDBCDistVerticesLoader(currentNodeID, chunkLocalService);
         long mem = Runtime.getRuntime().freeMemory();
-        vertexLoader.loadVertices("/home/voelz/projektarbeit/" + fileName);
-        System.out.println(mem - Runtime.getRuntime().freeMemory());
-        
+        GraphLoader graphLoader = new GraphLoader(bootService.getOnlinePeerNodeIDs(), bootService.getNodeID(), new LDBCPropertiesLoader(bootService.getOnlinePeerNodeIDs()),
+                verticesLoader, nameService, syncService, chunkService, chunkLocalService);
+
+        graphLoader.loadGraph(propertiesPath, verticePath, datasetPrefix);
+        LoadingMetaData metaData = graphLoader.getLoadingMetaData();
+
+
+        System.out.println("Memoryusage: " + (Runtime.getRuntime().freeMemory() - mem) / 1e+6);
+        System.out.println("-------------");
+        System.out.println(metaData.toString());
 
 
         // Put your application code running on the DXRAM node/peer here
