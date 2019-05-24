@@ -1,10 +1,10 @@
 package de.hhu.bsinfo.dxgraphloader.vertexLoader;
 
+import de.hhu.bsinfo.dxgraphloader.metaDataLoader.model.LoadingMetaData;
 import de.hhu.bsinfo.dxgraphloader.vertexLoader.model.Vertex;
 import de.hhu.bsinfo.dxgraphloader.vertexLoader.model.VertexLoader;
-import de.hhu.bsinfo.dxmem.data.ChunkID;
 import de.hhu.bsinfo.dxram.chunk.ChunkLocalService;
-import de.hhu.bsinfo.dxram.chunk.ChunkService;
+
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -14,13 +14,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.sql.SQLOutput;
-import java.util.Arrays;
 
 public class LDBCLocalVerticesLoader extends VertexLoader {
 
     private ChunkLocalService localService;
-    private ChunkService chunkService;
     private int NUM_OF_VERTICES;
 
 
@@ -28,15 +25,14 @@ public class LDBCLocalVerticesLoader extends VertexLoader {
         super();
     }
 
-    public LDBCLocalVerticesLoader(ChunkLocalService localService, ChunkService chunkService, int verticesCount) {
+    public LDBCLocalVerticesLoader(ChunkLocalService localService, int verticesCount) {
         this.localService = localService;
-        this.chunkService = chunkService;
         this.NUM_OF_VERTICES = verticesCount;
     }
 
 
     @Override
-    public void loadVertices(String filePath) {
+    public LoadingMetaData loadVertices(String filePath, LoadingMetaData metaData) {
         try (final BufferedReader br = new BufferedReader(
                 new InputStreamReader(
                         new BufferedInputStream(
@@ -49,7 +45,7 @@ public class LDBCLocalVerticesLoader extends VertexLoader {
             Vertex v = new Vertex();
             System.out.println("Create ID space!");
             long[] ids = new long[this.NUM_OF_VERTICES];
-            localService.createLocal().create(ids, this.NUM_OF_VERTICES, v.sizeofObject(), true ); //true = aufsteigend
+            localService.createLocal().create(ids, this.NUM_OF_VERTICES, v.sizeofObject(), true); //true = aufsteigend
             final long firstId = ids[0];
             long chunkId = firstId;
             ids = null;
@@ -62,7 +58,7 @@ public class LDBCLocalVerticesLoader extends VertexLoader {
                 v.setID(chunkId++);
                 v.setExternalId(vid);
 
-                this.idMapper.put(vid,(int) ((v.getID() - firstId) & 0x0000ffffffffffffL ));
+                this.idMapper.put(vid, (int) ((v.getID() - firstId) & 0x0000ffffffffffffL));
                 cntVertices++;
                 if (cntVertices % outMod == 0) {
                     System.out.println(String.format("Processing: %dM vertices finished...", (cntVertices / outMod)));
@@ -72,5 +68,6 @@ public class LDBCLocalVerticesLoader extends VertexLoader {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        return metaData;
     }
 }

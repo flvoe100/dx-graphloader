@@ -4,6 +4,6 @@ import java.util.List;
 
 public interface PropertiesLoader {
 
-    public LoadingMetaData loadProperties(String fileName, List<Short> nodes) throws WrongGraphInputException;
+    public LoadingMetaData loadProperties(String fileName, String datasetPrefix, List<Short> peers) throws WrongGraphInputException;
 
 }

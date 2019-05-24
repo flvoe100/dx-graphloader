@@ -1,15 +1,18 @@
 package de.hhu.bsinfo.dxgraphloader;
 
 import de.hhu.bsinfo.dxgraphloader.metaDataLoader.LDBCPropertiesLoader;
+import de.hhu.bsinfo.dxgraphloader.metaDataLoader.model.LoadingMetaData;
 import de.hhu.bsinfo.dxgraphloader.vertexLoader.LDBCDistVerticesLoader;
 import de.hhu.bsinfo.dxgraphloader.vertexLoader.LDBCLocalVerticesLoader;
-import de.hhu.bsinfo.dxgraphloader.vertexLoader.model.VertexLoader;
 import de.hhu.bsinfo.dxram.app.Application;
 import de.hhu.bsinfo.dxram.boot.BootService;
 import de.hhu.bsinfo.dxram.chunk.ChunkLocalService;
 import de.hhu.bsinfo.dxram.chunk.ChunkService;
 import de.hhu.bsinfo.dxram.engine.DXRAMVersion;
 import de.hhu.bsinfo.dxram.generated.BuildConfig;
+import de.hhu.bsinfo.dxram.nameservice.NameserviceService;
+import de.hhu.bsinfo.dxram.net.NetworkService;
+import de.hhu.bsinfo.dxram.sync.SynchronizationService;
 
 import java.util.List;
 
@@ -33,19 +36,30 @@ public class GraphloaderApplication extends Application {
     @Override
     public void main(final String[] p_args) {
 
-        String fileName = p_args[0];
-        int numberOfVertices = Integer.parseInt(p_args[1]);
-        System.out.println("Input: " + fileName);
-        BootService bootService = getService(BootService.class);
-        List<Short> nodes = bootService.getOnlinePeerNodeIDs();
-        short ownId = bootService.getNodeID();
+        ChunkLocalService chunkLocalService = this.getService(ChunkLocalService.class);
+        ChunkService chunkService = this.getService(ChunkService.class);
+        BootService bootService = this.getService(BootService.class);
+        NameserviceService nameService = this.getService(NameserviceService.class);
+        SynchronizationService syncService = this.getService(SynchronizationService.class);
+        NetworkService networkService = this.getService(NetworkService.class);
 
-        ChunkLocalService chunkLocalService = getService(ChunkLocalService.class);
-        ChunkService chunkService = getService(ChunkService.class);
-        VertexLoader vertexLoader = new LDBCLocalVerticesLoader(chunkLocalService, chunkService,  numberOfVertices );
+        String propFilePath = p_args[0];
+        String verticeFilePath = p_args[1];
+        String datasetPrefix = p_args[2];
+
+        short currentNodeID = bootService.getNodeID();
+        short coordinatorID = bootService.getOnlinePeerNodeIDs().get(0);
+        boolean isCoordinator = coordinatorID == currentNodeID;
+        LDBCDistVerticesLoader verticesLoader = new LDBCDistVerticesLoader(currentNodeID, isCoordinator,coordinatorID, chunkLocalService, chunkService, nameService, networkService, syncService);
         long mem = Runtime.getRuntime().freeMemory();
-        vertexLoader.loadVertices("/home/voelz/projektarbeit/" + fileName);
-        System.out.println(mem - Runtime.getRuntime().freeMemory());
+        GraphLoader graphLoader = new GraphLoader(bootService.getOnlinePeerNodeIDs(), bootService.getNodeID(), new LDBCPropertiesLoader(bootService.getOnlinePeerNodeIDs()),
+                verticesLoader, nameService, syncService, chunkService, chunkLocalService);
+
+        graphLoader.loadGraph(propFilePath, verticeFilePath, datasetPrefix);
+        LoadingMetaData metaData = graphLoader.getLoadingMetaData();
+
+
+        System.out.println(metaData.toString());
         
 
 
