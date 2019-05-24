@@ -1,4 +1,4 @@
-package de.hhu.bsinfo.dxgraphloader.metaDataLoader.model;
+package de.hhu.bsinfo.dxgraphloader.model;
 
 public class WrongGraphInputException extends Exception  {
 
