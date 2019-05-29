@@ -85,10 +85,10 @@ public class LDBCDistVerticesLoader extends VertexLoader implements MessageRecei
             String line = null;
             final int outMod = 1000000;
             int cntVertices = 0;
-            int lineNumber = 0;
+            int lineNumber = 1;
             int numberOfVerticesOfCurrentNode = metaData.getNumOfVerticesOfNode(this.currentNodeID);
             Vertex v = new Vertex();
-            LOGGER.info("Node %d: Create ID space objects", numberOfVerticesOfCurrentNode);
+            LOGGER.info("Node %d: Create ID space for %d objects", this.currentNodeID, numberOfVerticesOfCurrentNode);
 
             long[] ids = new long[numberOfVerticesOfCurrentNode];
             localService.createLocal().create(ids, numberOfVerticesOfCurrentNode, v.sizeofObject(), true); //true = aufsteigend
@@ -97,15 +97,27 @@ public class LDBCDistVerticesLoader extends VertexLoader implements MessageRecei
             ids = null;
             System.gc();
             System.out.println("");
-            LOGGER.info("Node %d: ID space created", numberOfVerticesOfCurrentNode);
-            LOGGER.info("Node %d: Start processing vertex file", numberOfVerticesOfCurrentNode);
+            LOGGER.info("Node %d: ID space created", this.currentNodeID);
+            LOGGER.info("Node %d: Start processing vertex file", this.currentNodeID);
+            LOGGER.info("Node %d: Startline: %d Endline: %d", this.currentNodeID,
+                    metaData.getStartLineNumberOfVerticesFile(this.currentNodeID), metaData.getEndLineNumberOfVerticesFile(this.currentNodeID));
             while ((line = br.readLine()) != null) {
 
-                if (isLineToConsider(lineNumber, metaData)) {
+                if (!isLineToConsider(lineNumber, metaData)) {
                     lineNumber++;
                     continue;
                 }
 
+                if(isLineToConsider(lineNumber, metaData)) {
+                    if(cntVertices == 0) {
+                        LOGGER.info("Node %d: First relevant line: %d", this.currentNodeID, lineNumber);
+                    }
+
+                    if (cntVertices == numberOfVerticesOfCurrentNode - 1) {
+                        LOGGER.info("Node %d: Last relevant line: %d", this.currentNodeID, lineNumber);
+
+                    }
+                }
                 lineNumber++;
 
                 long vid = Long.parseLong(line.split("\\s")[0]);
@@ -185,8 +197,6 @@ public class LDBCDistVerticesLoader extends VertexLoader implements MessageRecei
                 this.nameService.register(barrierID, this.UPDATE_BARRIER);
 
                 LOGGER.info("Coordinator %d: All slaves entered vertex barrier. Now update global metadata", this.currentNodeID);
-                LOGGER.info("PUT");
-                LOGGER.info(this.metaData);
                 if(!this.chunkService.put().put(this.metaData)) {
                     LOGGER.error("Coordinator: Updating failed for new global metadata");
                 }

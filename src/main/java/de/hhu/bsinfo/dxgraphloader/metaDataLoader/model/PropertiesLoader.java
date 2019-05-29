@@ -1,5 +1,7 @@
 package de.hhu.bsinfo.dxgraphloader.metaDataLoader.model;
 
+import de.hhu.bsinfo.dxgraphloader.model.WrongGraphInputException;
+
 import java.util.List;
 
 public interface PropertiesLoader {

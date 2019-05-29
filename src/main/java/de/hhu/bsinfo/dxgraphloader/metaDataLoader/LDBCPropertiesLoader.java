@@ -1,10 +1,9 @@
 package de.hhu.bsinfo.dxgraphloader.metaDataLoader;
 
 
-
 import de.hhu.bsinfo.dxgraphloader.metaDataLoader.model.LoadingMetaData;
 import de.hhu.bsinfo.dxgraphloader.metaDataLoader.model.PropertiesLoader;
-import de.hhu.bsinfo.dxgraphloader.metaDataLoader.model.WrongGraphInputException;
+import de.hhu.bsinfo.dxgraphloader.model.WrongGraphInputException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -36,7 +35,8 @@ public class LDBCPropertiesLoader implements PropertiesLoader {
 
 
     @Override
-    public LoadingMetaData loadProperties(String propertiesPath, String prefixDataset, List<Short> peers) throws WrongGraphInputException {
+    public LoadingMetaData
+    loadProperties(String propertiesPath, String prefixDataset, List<Short> peers) throws WrongGraphInputException {
         this.nodes = peers;
         short[] nodeIDs = new short[nodes.size()];
         for (int i = 0; i < nodes.size(); i++) {
@@ -89,7 +89,6 @@ public class LDBCPropertiesLoader implements PropertiesLoader {
         if (this.nodes.size() > metaData.getNumOfVertices()) {
             throw new WrongGraphInputException("ERROR: Too small number of vertices for the given number of datanodes!");
         }
-        int startReadIndex = 0;
         int totalNumberOfVertices = metaData.getNumOfVertices();
         for (int i = 0; i < this.nodes.size(); i++) {
             short nodeID = this.nodes.get(i);

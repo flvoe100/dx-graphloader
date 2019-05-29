@@ -3,7 +3,7 @@ package de.hhu.bsinfo.dxgraphloader;
 
 import de.hhu.bsinfo.dxgraphloader.metaDataLoader.model.LoadingMetaData;
 import de.hhu.bsinfo.dxgraphloader.metaDataLoader.model.PropertiesLoader;
-import de.hhu.bsinfo.dxgraphloader.metaDataLoader.model.WrongGraphInputException;
+import de.hhu.bsinfo.dxgraphloader.model.WrongGraphInputException;
 import de.hhu.bsinfo.dxgraphloader.vertexLoader.model.VertexLoader;
 import de.hhu.bsinfo.dxmem.data.ChunkID;
 import de.hhu.bsinfo.dxram.chunk.ChunkLocalService;

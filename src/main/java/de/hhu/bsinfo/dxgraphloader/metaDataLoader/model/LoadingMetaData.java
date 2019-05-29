@@ -4,11 +4,14 @@ import de.hhu.bsinfo.dxmem.data.AbstractChunk;
 import de.hhu.bsinfo.dxutils.serialization.Exporter;
 import de.hhu.bsinfo.dxutils.serialization.Importer;
 import de.hhu.bsinfo.dxutils.serialization.ObjectSizeUtil;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.Arrays;
 
 public class LoadingMetaData extends AbstractChunk {
 
+    private final Logger LOGGER = LogManager.getFormatterLogger(LoadingMetaData.class);
 
     private int numOfVertices = 0;
     private int numOfEdges = 0;
@@ -174,7 +177,7 @@ public class LoadingMetaData extends AbstractChunk {
 
     public int getStartLineNumberOfVerticesFile(short nodeID) throws NodeIDNotExistException {
         int indexOfNode = this.getIndexOfNode(nodeID);
-        int startLine = 0;
+        int startLine = 1;
         for (int i = 0; i < indexOfNode; i++) {
             startLine += this.getNumOfVerticesOfNode(this.getNodeID(i));
         }
@@ -187,7 +190,7 @@ public class LoadingMetaData extends AbstractChunk {
         for (int i = 0; i <= indexOfNode; i++) {
             endLine += this.getNumOfVerticesOfNode(this.getNodeID(i));
         }
-        return endLine - 1;
+        return endLine;
     }
 
 
@@ -243,7 +246,7 @@ public class LoadingMetaData extends AbstractChunk {
             long endExternalVertexID = this.endExternalVertexIDs[i];
             long endInternalVertexID = this.startInternalVertexIDs[i];
 
-            sb.append(String.format("Nodemetadata for node %d\nNumber of Vertices: %d\nStartinternalvertix: %d\nStartexternalvertix: %d\nEndinternalvertix: %d\nEndexternalvertix: %d\n",
+            sb.append(String.format("Nodemetadata for node %d\nNumber of Vertices: %d\nStartinternalvertix: %d\nStartexternalvertix: %d\nEndinternalvertix: %d\nEndexternalvertix: %d\n\n",
                     nodeID, numberOfVertices, startInternalVertexID, startExternalVertexID, endInternalVertexID, endExternalVertexID));
         }
 

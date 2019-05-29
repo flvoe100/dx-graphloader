@@ -3,7 +3,6 @@ package de.hhu.bsinfo.dxgraphloader;
 import de.hhu.bsinfo.dxgraphloader.metaDataLoader.LDBCPropertiesLoader;
 import de.hhu.bsinfo.dxgraphloader.metaDataLoader.model.LoadingMetaData;
 import de.hhu.bsinfo.dxgraphloader.vertexLoader.LDBCDistVerticesLoader;
-import de.hhu.bsinfo.dxgraphloader.vertexLoader.LDBCLocalVerticesLoader;
 import de.hhu.bsinfo.dxram.app.Application;
 import de.hhu.bsinfo.dxram.boot.BootService;
 import de.hhu.bsinfo.dxram.chunk.ChunkLocalService;
@@ -13,8 +12,8 @@ import de.hhu.bsinfo.dxram.generated.BuildConfig;
 import de.hhu.bsinfo.dxram.nameservice.NameserviceService;
 import de.hhu.bsinfo.dxram.net.NetworkService;
 import de.hhu.bsinfo.dxram.sync.SynchronizationService;
-
-import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 
 /**
@@ -23,6 +22,9 @@ import java.util.List;
  * @author Stefan Nothaas, stefan.nothaas@hhu.de, 17.05.17
  */
 public class GraphloaderApplication extends Application {
+
+    private final Logger LOGGER = LogManager.getFormatterLogger(GraphloaderApplication.class);
+
     @Override
     public DXRAMVersion getBuiltAgainstVersion() {
         return BuildConfig.DXRAM_VERSION;
@@ -35,7 +37,7 @@ public class GraphloaderApplication extends Application {
 
     @Override
     public void main(final String[] p_args) {
-
+        long startTime = System.nanoTime();
         ChunkLocalService chunkLocalService = this.getService(ChunkLocalService.class);
         ChunkService chunkService = this.getService(ChunkService.class);
         BootService bootService = this.getService(BootService.class);
@@ -59,8 +61,15 @@ public class GraphloaderApplication extends Application {
         LoadingMetaData metaData = graphLoader.getLoadingMetaData();
 
 
-        System.out.println(metaData.toString());
-        
+        LOGGER.info(metaData.toString());
+
+        long endTime = System.nanoTime();
+
+        long exec_time = endTime - startTime;
+
+
+        LOGGER.info("Node %d: Execution time: %dns", currentNodeID, exec_time);
+
 
 
         // Put your application code running on the DXRAM node/peer here
