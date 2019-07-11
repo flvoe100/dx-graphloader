@@ -9,6 +9,8 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.Arrays;
 
+import static de.hhu.bsinfo.dxgraphloader.util.Util.isInRange;
+
 public class LoadingMetaData extends AbstractChunk {
 
     private final Logger LOGGER = LogManager.getFormatterLogger(LoadingMetaData.class);
@@ -26,6 +28,8 @@ public class LoadingMetaData extends AbstractChunk {
     private long[] endInternalVertexIDs;
 
     private int[] numberOfVerticesOfNodes;
+
+    public LoadingMetaData() {}
 
     public LoadingMetaData(int numberOfNodes) {
         this.nodesIDs = new short[numberOfNodes];
@@ -71,6 +75,10 @@ public class LoadingMetaData extends AbstractChunk {
 
     public int getNumberOfNodes() {
         return this.nodesIDs.length;
+    }
+
+    public short[] getNodesIDs() {
+        return nodesIDs;
     }
 
     public boolean isDirected() {
@@ -161,6 +169,20 @@ public class LoadingMetaData extends AbstractChunk {
             throw new NodeIDNotExistException(String.format("The given nodeID, %d, does not exists in the node pool!", nodeID));
         }
         return this.endInternalVertexIDs[nodeIndex];
+    }
+
+    public long getInternalVertexIDOfExternalID(long externalID) {
+        long[] startVertexIDs = this.startExternalVertexIDs;
+        long[] endVertexIDs = this.endExternalVertexIDs;
+        for (int i = 0; i < startVertexIDs.length; i++) {
+            long start = startVertexIDs[i];
+            long end = endVertexIDs[i];
+            if (isInRange(start, end, externalID)) {
+                long iStart = this.startInternalVertexIDs[i];
+                return iStart + externalID - start;
+            }
+        }
+        return -1;
     }
 
     private int getIndexOfNode(short nodeID) {

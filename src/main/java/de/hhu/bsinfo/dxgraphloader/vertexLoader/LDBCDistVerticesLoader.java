@@ -4,6 +4,7 @@ import de.hhu.bsinfo.dxgraphloader.messages.GraphloadingMessages;
 import de.hhu.bsinfo.dxgraphloader.messages.StartEndVerticesMessage;
 import de.hhu.bsinfo.dxgraphloader.metaDataLoader.model.LoadingMetaData;
 import de.hhu.bsinfo.dxgraphloader.metaDataLoader.model.NodeIDNotExistException;
+import de.hhu.bsinfo.dxgraphloader.util.Util;
 import de.hhu.bsinfo.dxgraphloader.vertexLoader.model.Vertex;
 import de.hhu.bsinfo.dxgraphloader.vertexLoader.model.VertexLoader;
 import de.hhu.bsinfo.dxnet.MessageReceiver;
@@ -27,6 +28,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.concurrent.TimeUnit;
+
+import static de.hhu.bsinfo.dxgraphloader.GraphLoader.GLOBAL_META_DATA;
 
 public class LDBCDistVerticesLoader extends VertexLoader implements MessageReceiver {
 
@@ -34,8 +38,6 @@ public class LDBCDistVerticesLoader extends VertexLoader implements MessageRecei
 
     private final String MESSAGE_BARRIER = "BMSG";
     private final String UPDATE_BARRIER = "BU";
-    private final int TIMEOUT = 1000;
-
 
     private ChunkLocalService localService;
     private NetworkService networkService;
@@ -51,6 +53,7 @@ public class LDBCDistVerticesLoader extends VertexLoader implements MessageRecei
 
 
     public LDBCDistVerticesLoader(short currentNodeID, boolean isCoordinator, short coordinatorID, ChunkLocalService chunkLocalService, ChunkService chunkService, NameserviceService nameService, NetworkService networkService, SynchronizationService synchronizationService) {
+        super();
         this.localService = chunkLocalService;
         this.networkService = networkService;
         this.syncService = synchronizationService;
@@ -66,11 +69,16 @@ public class LDBCDistVerticesLoader extends VertexLoader implements MessageRecei
     @Override
     public LoadingMetaData loadVertices(String filePath, LoadingMetaData metaData) {
         this.metaData = metaData;
+        this.initVertexContainer(metaData.getNumOfVertices());
         registerMessageTypeAndReceiver();
         this.metaData = this.loadVerticesFile(filePath, metaData);
 
 
-        slavesSendResultCoordinatorProcesses();
+        try {
+            slavesSendResultCoordinatorProcesses();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
         return this.metaData;
     }
@@ -108,8 +116,8 @@ public class LDBCDistVerticesLoader extends VertexLoader implements MessageRecei
                     continue;
                 }
 
-                if(isLineToConsider(lineNumber, metaData)) {
-                    if(cntVertices == 0) {
+                if (isLineToConsider(lineNumber, metaData)) {
+                    if (cntVertices == 0) {
                         LOGGER.info("Node %d: First relevant line: %d", this.currentNodeID, lineNumber);
                     }
 
@@ -133,6 +141,7 @@ public class LDBCDistVerticesLoader extends VertexLoader implements MessageRecei
                 v.setExternalId(vid);
 
                 this.idMapper.put(vid, (int) ((v.getID() - firstId) & 0x0000ffffffffffffL));
+                this.addVertex(v);
                 cntVertices++;
                 if (cntVertices % outMod == 0) {
                     LOGGER.info("Node %d: Processing %dM vertices finished...", this.currentNodeID, (cntVertices / outMod));
@@ -152,7 +161,7 @@ public class LDBCDistVerticesLoader extends VertexLoader implements MessageRecei
         return lineNumber >= firstLineNumber && lineNumber <= lastLineNumber;
     }
 
-    private void slavesSendResultCoordinatorProcesses() {
+    private void slavesSendResultCoordinatorProcesses() throws InterruptedException {
         if (!this.isCoordinator) {
             try {
                 LOGGER.info("Slave %d: Sending vertices metadata result to coordinator", currentNodeID);
@@ -165,44 +174,35 @@ public class LDBCDistVerticesLoader extends VertexLoader implements MessageRecei
                 LOGGER.info("Slave %d: Message has been send", this.currentNodeID);
                 LOGGER.info("Slave %d: Getting vertex barrier id", currentNodeID);
 
-                int barrierID = BarrierID.INVALID_ID;
-                while (barrierID == BarrierID.INVALID_ID) {
-                    barrierID = (int) this.nameService.getChunkID(this.MESSAGE_BARRIER, this.TIMEOUT);
-                }
-                LOGGER.info("Slave %d: Entering vertex barrier", this.currentNodeID);
-                this.syncService.barrierSignOn(barrierID, 0, true);
+                Util.waitForAllBarrier(false, BarrierID.INVALID_ID, MESSAGE_BARRIER, false, syncService, nameService);
 
-                barrierID = BarrierID.INVALID_ID;
-                while (barrierID == BarrierID.INVALID_ID) {
-                    barrierID = (int) this.nameService.getChunkID(this.UPDATE_BARRIER, this.TIMEOUT);
-                }
-                LOGGER.info("Slave %d: Entering update barrier", this.currentNodeID);
-                this.syncService.barrierSignOn(barrierID, 0, true);
+                Util.waitForAllBarrier(false, BarrierID.INVALID_ID, UPDATE_BARRIER, syncService, nameService);
+
             } catch (NodeIDNotExistException e) {
                 e.printStackTrace();
             } catch (NetworkException e) {
                 e.printStackTrace();
             }
         } else {
-            LOGGER.info("Coordinator %d: Creating vertex barrier with size %d", this.currentNodeID, metaData.getNumberOfNodes() - 1);
+            LOGGER.info("Coordinator %d: Creating vertex barrier with size %d", this.currentNodeID, metaData.getNumberOfNodes());
 
-            int barrierID = this.syncService.barrierAllocate(metaData.getNumberOfNodes());
-            this.nameService.register(barrierID, this.MESSAGE_BARRIER);
-            BarrierStatus bStatus = syncService.barrierSignOn(barrierID, 0, true);
+            int barrierID = Util.buildBarrier(MESSAGE_BARRIER, metaData.getNumberOfNodes(), syncService, nameService);
 
-            LOGGER.info("Coordinator %d: Checking if all slaves entered vertex barrier", this.currentNodeID);
-            if (bStatus.getNumberOfSignedOnPeers() == metaData.getNumberOfNodes()) {
-                this.syncService.barrierFree(barrierID);
-                barrierID = this.syncService.barrierAllocate(metaData.getNumberOfNodes());
-                this.nameService.register(barrierID, this.UPDATE_BARRIER);
+            Util.waitForAllBarrier(true, barrierID, MESSAGE_BARRIER, true, syncService, nameService);
 
-                LOGGER.info("Coordinator %d: All slaves entered vertex barrier. Now update global metadata", this.currentNodeID);
-                if(!this.chunkService.put().put(this.metaData)) {
-                    LOGGER.error("Coordinator: Updating failed for new global metadata");
-                }
-                this.syncService.barrierSignOn(barrierID, 0, true);
-                this.syncService.barrierFree(barrierID);
+            barrierID = Util.buildBarrier(UPDATE_BARRIER, metaData.getNumberOfNodes(), syncService, nameService);
+
+            LOGGER.info("Update global meta data...");
+            if (!this.chunkService.put().put(this.metaData)) {
+                LOGGER.error("Coordinator: Updating failed for new global metadata");
+                System.exit(1);
             }
+            TimeUnit.SECONDS.sleep(1);
+            LOGGER.info("Update done!");
+            nameService.register(metaData.getID(), GLOBAL_META_DATA);
+            this.syncService.barrierSignOn(barrierID, 0, true);
+            this.syncService.barrierFree(barrierID);
+
             LOGGER.info("Coodinator %d: Updated global metadata. Now free barrier!", this.currentNodeID);
         }
     }
@@ -235,6 +235,5 @@ public class LDBCDistVerticesLoader extends VertexLoader implements MessageRecei
         }
 
     }
-
 
 }

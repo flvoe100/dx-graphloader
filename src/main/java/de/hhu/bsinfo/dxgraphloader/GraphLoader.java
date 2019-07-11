@@ -1,8 +1,10 @@
 package de.hhu.bsinfo.dxgraphloader;
 
 
+import de.hhu.bsinfo.dxgraphloader.edgeLoader.model.EdgeLoader;
 import de.hhu.bsinfo.dxgraphloader.metaDataLoader.model.LoadingMetaData;
 import de.hhu.bsinfo.dxgraphloader.metaDataLoader.model.PropertiesLoader;
+import de.hhu.bsinfo.dxgraphloader.model.KeyValueStoreLoadingException;
 import de.hhu.bsinfo.dxgraphloader.model.WrongGraphInputException;
 import de.hhu.bsinfo.dxgraphloader.vertexLoader.model.VertexLoader;
 import de.hhu.bsinfo.dxmem.data.ChunkID;
@@ -16,6 +18,8 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 
+import static de.hhu.bsinfo.dxgraphloader.util.Util.*;
+
 public class GraphLoader {
 
     private static final Logger LOGGER = LogManager.getFormatterLogger(GraphLoader.class);
@@ -27,18 +31,20 @@ public class GraphLoader {
 
     private PropertiesLoader propertiesLoader;
     private VertexLoader vertexLoader;
+    private EdgeLoader edgeLoader;
     private List<Short> nodes;
+    private boolean saveVertex;
     private short ownID;
 
     private LoadingMetaData metaData;
 
-    private final String PROPERTIES_BARRIER = "PBAR";
-    private final String VERTICES_BARRIER = "VBAR";
-    private final String GRAPH_METADATA = "GMD";
-    private final int TIMEOUT = 1000;
+    private final String PROP_BARRIER = "PBARR";
+    private final String GMD_BARRIER = "GMDB";
+    private final String VERT_BARRIER = "VBARR";
+    public static final String GLOBAL_META_DATA = "GMD";
 
 
-    public GraphLoader(List<Short> nodes, short currentId, PropertiesLoader propertiesLoader, VertexLoader vertexLoader,
+    public GraphLoader(List<Short> nodes, short currentId, boolean saveVertex, PropertiesLoader propertiesLoader, VertexLoader vertexLoader, EdgeLoader edgeLoader,
                        NameserviceService nameService, SynchronizationService syncService, ChunkService chunkService, ChunkLocalService chunkLocalService) {
         this.nameService = nameService;
         this.syncService = syncService;
@@ -48,13 +54,53 @@ public class GraphLoader {
         this.nodes = nodes;
         this.propertiesLoader = propertiesLoader;
         this.vertexLoader = vertexLoader;
+        this.edgeLoader = edgeLoader;
+        this.saveVertex = saveVertex;
         this.ownID = currentId;
     }
 
-    public void loadGraph(String propertiesFilePath, String verticesFilePath, String datasetPrefix) {
+    public void loadGraph(String propertiesFilePath, String verticesFilePath, String edgeFilePath, String datasetPrefix) {
         LOGGER.info("%d: Start loading Graph", this.ownID);
-        this.loadProperties(propertiesFilePath, datasetPrefix);
-        this.loadVertices(verticesFilePath);
+        Runtime runtime = Runtime.getRuntime();
+        long startTime = System.nanoTime();
+        long memoryUsageStart = runtime.totalMemory() - runtime.freeMemory();
+        try {
+            this.loadProperties(propertiesFilePath, datasetPrefix);
+            long memoryUsageProp = runtime.totalMemory() - runtime.freeMemory();
+            System.gc();
+            long endTimeProp = System.nanoTime();
+            long execTimeProp = endTimeProp - startTime;
+            long startTimeVertex = System.nanoTime();
+
+            this.loadVertices(verticesFilePath);
+
+            long memoryUsageVertices = runtime.totalMemory() - runtime.freeMemory();
+            long endTimeVertex = System.nanoTime();
+
+            long execTimeVert = endTimeVertex - startTimeVertex;
+            System.gc();
+            long startTimeEdges = System.nanoTime();
+            /** this.loadEdges(edgeFilePath);
+             long endTimeEdges = System.nanoTime();
+             long execTimeEdges = endTimeEdges - startTimeEdges;
+             System.gc();
+             */
+            long memoryUsageEnd = runtime.totalMemory() - runtime.freeMemory();
+            long execTimeOverall = execTimeProp + execTimeVert;
+            LOGGER.info("Node %d: Properties time: %d nanosecond", this.ownID, execTimeProp);
+            LOGGER.info("Node %d: Vertex time: %d nanosecond", this.ownID, execTimeVert);
+            //  LOGGER.info("Node %d: Edges time: %d nanosecond", this.ownID, execTimeEdges);
+            LOGGER.info("Node %d: Overall time: %d nanosecond", this.ownID, execTimeOverall);
+            LOGGER.info("Node %d: Start memory: %d bytes", this.ownID, memoryUsageStart);
+            LOGGER.info("Node %d: Properties memory: %d bytes", this.ownID, memoryUsageProp);
+            LOGGER.info("Node %d: Vertex memory: %d bytes", this.ownID, memoryUsageVertices);
+            LOGGER.info("Node %d: End memory: %d bytes", this.ownID, memoryUsageEnd);
+        } catch (WrongGraphInputException e) {
+            e.printStackTrace();
+        } catch (KeyValueStoreLoadingException e) {
+            e.printStackTrace();
+        }
+
 
     }
 
@@ -66,104 +112,66 @@ public class GraphLoader {
         return this.vertexLoader.idMapper.size();
     }
 
-    private void loadProperties(String propertiesFilePath, String datasetPrefix) {
+    private void loadProperties(String propertiesFilePath, String datasetPrefix) throws WrongGraphInputException, KeyValueStoreLoadingException {
         LOGGER.info("Node %d: Start loading Graphproperties", this.ownID);
 
-        if (this.nodes.get(0) == this.ownID) {
-            loadPropertiesByCoordinator(propertiesFilePath, datasetPrefix);
-        } else {
-            loadPropertiesBySlaveNodes();
-        }
-    }
-
-    private void loadPropertiesByCoordinator(String propertiesFilePath, String datasetPrefix) {
-        LOGGER.info("Coordinator %d: loading Properties", this.ownID);
-
-        int barrierID = this.syncService.barrierAllocate(this.nodes.size());
-        this.nameService.register(barrierID, PROPERTIES_BARRIER);
-        LOGGER.info("Coordinator %d: Properties Barrier created", this.ownID);
-
-        try {
+        if (isCoordinator()) {
+            int barrierID = buildBarrier(this.PROP_BARRIER, this.nodes.size(), this.syncService, this.nameService);
             this.metaData = this.propertiesLoader.loadProperties(propertiesFilePath, datasetPrefix, this.nodes);
-            this.chunkLocalService.createLocal().create(this.metaData);
-            this.chunkService.put().put(this.metaData);
-        } catch (WrongGraphInputException e) {
-            e.printStackTrace();
-        }
+            chunkLocalService.createLocal().create(metaData);
+            chunkService.put().put(metaData);
+            LOGGER.info("Coordinator register global meta data");
 
-        this.nameService.register(metaData.getID(), this.GRAPH_METADATA);
-        LOGGER.info("Coordinator %d: Saved and registered metadata", this.ownID);
+            nameService.register(metaData.getID(), GLOBAL_META_DATA);
+            LOGGER.info("Register done!");
 
-        this.syncService.barrierSignOn(barrierID, 0, true);
-        this.syncService.barrierFree(barrierID);
-        LOGGER.info("Coordinator %d: Properties barrier freed", this.ownID);
-
-    }
-
-    private void loadPropertiesBySlaveNodes() {
-
-        int barrierID = BarrierID.INVALID_ID;
-        long metaDataID = ChunkID.INVALID_ID;
-        LOGGER.info("Slave %d: Load Metadata from coordinator", this.ownID);
-        while (metaDataID == ChunkID.INVALID_ID) {
-            metaDataID = this.nameService.getChunkID(this.GRAPH_METADATA, this.TIMEOUT);
-        }
-        this.metaData = new LoadingMetaData(this.nodes.size());
-        this.metaData.setID(metaDataID);
-        this.chunkService.get().get(this.metaData);
-        LOGGER.info("Slave %d: Loaded Metadata from coordinator", this.ownID);
-
-        LOGGER.info("Slave %d: Entering properties barrier", this.ownID);
-
-        while (barrierID == BarrierID.INVALID_ID) {
-            barrierID = (int) this.nameService.getChunkID(this.PROPERTIES_BARRIER, this.TIMEOUT);
-        }
-        this.syncService.barrierSignOn(barrierID, 0, true);
-    }
-
-    private void loadVertices(String verticesFilePath) {
-        LOGGER.info("Node %d: Start loading vertices", this.ownID);
-        if(this.ownID == this.nodes.get(0)){
-            this.coordinatorLoadsVertices(verticesFilePath);
+            waitForAllBarrier(true, barrierID, this.PROP_BARRIER, this.syncService, this.nameService);
+            barrierID = buildBarrier(this.GMD_BARRIER, this.nodes.size(), this.syncService, this.nameService);
+            waitForAllBarrier(true ,barrierID, GMD_BARRIER, this.syncService, this.nameService);
         } else {
-            this.slavesLoadVertices(verticesFilePath);
+            waitForAllBarrier(false,BarrierID.INVALID_ID, PROP_BARRIER, this.syncService, this.nameService);
+            loadGlobalMetaData();
+            waitForAllBarrier(false, BarrierID.INVALID_ID, GMD_BARRIER, this.syncService, this.nameService);
         }
-
-
     }
 
-    private void slavesLoadVertices(String verticesFilePath) {
-        LOGGER.info("Slave %d: Load vertices from file", this.ownID);
-        this.metaData = this.vertexLoader.loadVertices(verticesFilePath, this.metaData);
-        LOGGER.info("Slave %d: Finished loading vertices from file", this.ownID);
-
+    private void loadVertices(String verticesFilePath) throws KeyValueStoreLoadingException {
+        LOGGER.info("Node %d: Start loading vertices", this.ownID);
         int barrierID = BarrierID.INVALID_ID;
-        LOGGER.info("Slave %d: Wait for others...(Vertices barrier)", this.ownID);
-        while (barrierID == BarrierID.INVALID_ID) {
-            barrierID = (int) this.nameService.getChunkID(this.VERTICES_BARRIER, this.TIMEOUT);
+        if (this.ownID == this.nodes.get(0)) {
+            barrierID = buildBarrier(VERT_BARRIER, this.nodes.size(), this.syncService, this.nameService);
         }
-        this.syncService.barrierSignOn(barrierID, 0, true);
-        LOGGER.info("Slave %d: Load global meta data", this.ownID);
-        if(!this.chunkService.get().get(this.metaData)){
-            LOGGER.error("Slave %d: Could not load new global metadata", this.ownID);
-        }
-        LOGGER.info("GET");
-        LOGGER.info(this.metaData.toString());
-        LOGGER.info("Slave %d: Loaded new global meta data", this.ownID);
-    }
+        this.vertexLoader.loadVertices(verticesFilePath, metaData);
+        if (!isCoordinator()) {
+            LOGGER.info(metaData.toString());
+            chunkService.get().get(this.metaData);
+            LOGGER.info(metaData.toString());
 
-    private void coordinatorLoadsVertices(String verticesFilePath) {
-        LOGGER.info("Coordinator %d: Create vertices barrier", this.ownID);
-        int barrierID = this.syncService.barrierAllocate(this.nodes.size());
-        this.nameService.register(barrierID, this.VERTICES_BARRIER);
-        LOGGER.info("Coordinator %d: Load vertices from file", this.ownID);
-        this.metaData =  this.vertexLoader.loadVertices(verticesFilePath, this.metaData);
-        LOGGER.info("Coordinator %d: Finished loading vertices from file", this.ownID);
-        this.syncService.barrierSignOn(barrierID, 0, true);
-        this.syncService.barrierFree(barrierID);
+        }
+        waitForAllBarrier(isCoordinator(), barrierID, VERT_BARRIER, this.syncService, this.nameService);
     }
 
     private void loadEdges(String edgesFilePath) {
-
+        this.edgeLoader.loadEdges(edgesFilePath, this.vertexLoader.idMapper, vertexLoader.vertices, metaData, saveVertex);
     }
+
+    private boolean isCoordinator() {
+        return this.ownID == this.nodes.get(0);
+    }
+
+
+
+    private void loadGlobalMetaData() throws KeyValueStoreLoadingException {
+        LOGGER.info("Node %d: Loading global meta data");
+        long metaDataID = getIdFromNameService(this.GLOBAL_META_DATA, this.nameService);
+
+        this.metaData = new LoadingMetaData();
+        this.metaData.setID(metaDataID);
+        if (!this.chunkService.get().get(this.metaData)) {
+            LOGGER.error("Slave %d: Could not load global meta data");
+            throw new KeyValueStoreLoadingException("Could not load global meta data!");
+        }
+        LOGGER.info("Slave %d: Loaded Metadata from coordinator", this.ownID);
+    }
+
 }
